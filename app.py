@@ -10,7 +10,7 @@ from datetime import datetime
 st.set_page_config(page_title="RobotİK - Pro Analiz", layout="wide", page_icon="🚀")
 st.title("🚀 RobotİK - İnteraktif Analiz ve Raporlama Paneli")
 
-# Stil özelleştirmeleri (Tabloların daha şık görünmesi için)
+# Stil özelleştirmeleri
 st.markdown("""
 <style>
     .stTabs [data-baseweb="tab-list"] { gap: 10px; }
@@ -110,6 +110,10 @@ with st.sidebar:
     st.header("💾 Ayar Merkezi")
     if st.session_state.kurallar:
         st.download_button("Ayarları İndir (.json)", json.dumps(st.session_state.kurallar), "ayarlar.json", "application/json")
+        
+        if st.button("Tüm Kuralları Temizle 🗑️"):
+            st.session_state.kurallar = []
+            st.rerun()
     
     st.divider()
     uploaded_settings = st.file_uploader("Ayar Yükle", type=["json"])
@@ -127,7 +131,6 @@ if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file)
         
-        # Hızlı İstatistikler
         col_stat1, col_stat2, col_stat3 = st.columns(3)
         col_stat1.metric("Toplam Kişi", len(df))
         col_stat1.info("✅ Veri Başarıyla Okundu")
@@ -152,7 +155,6 @@ if uploaded_file:
             cols = st.columns(len(s_sec)) if len(s_sec) < 4 else st.columns(3)
             for i, s in enumerate(s_sec):
                 with cols[i % 3]:
-                    # Renkli Histogram
                     fig = px.histogram(df, x=s, title=s, color_discrete_sequence=['#6c5ce7'], height=150)
                     fig.update_layout(margin=dict(l=0,r=0,t=25,b=0), showlegend=False)
                     st.plotly_chart(fig, use_container_width=True)
@@ -168,10 +170,26 @@ if uploaded_file:
                 sel = st.multiselect(f"{s} değerleri:", df[s].dropna().unique(), key=f"k_{s}")
                 if sel: filtreler["kategorik"][s] = sel
 
-        if st.button("Grubu Ekle ➕", type="primary"):
+        # --- GÜNCELLENEN EKLEME BUTONU ---
+        if st.button("Grubu Ekle / Güncelle ➕", type="primary"):
             if kat_adi and (filtreler["sayisal"] or filtreler["kategorik"]):
-                st.session_state.kurallar.append({"kategori": kat_adi, "filtreler": filtreler})
-                st.success(f"{kat_adi} eklendi!")
+                
+                yeni_kural = {"kategori": kat_adi, "filtreler": filtreler}
+                
+                # KONTROL: Aynı isimde grup var mı?
+                guncellendi = False
+                for i, kural in enumerate(st.session_state.kurallar):
+                    if kural['kategori'] == kat_adi:
+                        st.session_state.kurallar[i] = yeni_kural # Eskisini ez
+                        guncellendi = True
+                        break
+                
+                if not guncellendi:
+                    st.session_state.kurallar.append(yeni_kural)
+                    st.success(f"✅ '{kat_adi}' yeni grup olarak eklendi!")
+                else:
+                    st.warning(f"⚠️ '{kat_adi}' grubunun kriterleri GÜNCELLENDİ! (Eski hali silindi)")
+                    
             else: st.warning("İsim ve en az bir kriter girin.")
 
         # --- SONUÇ EKRANI ---
@@ -179,8 +197,7 @@ if uploaded_file:
             st.divider()
             st.header("3. 🔍 İnteraktif Keşif ve Sonuçlar")
 
-            # Verileri Hazırla
-            grup_verileri = {} # Tab'lar için veriyi burada tutacağız
+            grup_verileri = {} 
             summary_data = []
             
             for kural in st.session_state.kurallar:
@@ -193,17 +210,18 @@ if uploaded_file:
                 grup_verileri[kural['kategori']] = t_df
                 summary_data.append({"Grup": kural['kategori'], "Kişi": len(t_df)})
 
-            # Görsel Özet (Treemap)
+            # Treemap
             col_g1, col_g2 = st.columns([2, 1])
             with col_g1:
-                st.markdown("##### Genel Bakış (Kutuların büyüklüğü kişi sayısını gösterir)")
-                fig_tree = px.treemap(pd.DataFrame(summary_data), path=['Grup'], values='Kişi', 
-                                      color='Grup', color_discrete_sequence=px.colors.qualitative.Pastel)
-                st.plotly_chart(fig_tree, use_container_width=True)
+                st.markdown("##### Genel Bakış")
+                if summary_data:
+                    fig_tree = px.treemap(pd.DataFrame(summary_data), path=['Grup'], values='Kişi', 
+                                          color='Grup', color_discrete_sequence=px.colors.qualitative.Pastel)
+                    st.plotly_chart(fig_tree, use_container_width=True)
             
             with col_g2:
                 st.markdown("##### İndirme Merkezi")
-                # Excel İndir
+                # Excel
                 out_ex = io.BytesIO()
                 with pd.ExcelWriter(out_ex, engine='xlsxwriter') as writer:
                     df.to_excel(writer, sheet_name='Tüm Veri', index=False)
@@ -213,43 +231,37 @@ if uploaded_file:
                 st.download_button("📥 Excel İndir", out_ex.getvalue(), "sonuc.xlsx", 
                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
                 
-                # HTML Rapor İndir
-                st.download_button("📄 Renkli Rapor İndir (HTML)", create_html_report(df, st.session_state.kurallar), 
+                # HTML
+                st.download_button("📄 Rapor İndir (HTML)", create_html_report(df, st.session_state.kurallar), 
                                    "rapor.html", "text/html", type="primary", use_container_width=True)
 
             st.divider()
-            st.subheader("4. 🕵️‍♀️ Grupları İncele ve Kişi Ara")
-            st.info("Aşağıdaki sekmelere tıklayarak grupların içindeki kişileri görebilir ve arama yapabilirsiniz.")
+            st.subheader("4. 🕵️‍♀️ Grupları İncele")
 
-            # --- SEKME (TAB) YAPISI VE ARAMA ---
             tab_names = list(grup_verileri.keys())
-            # Sekmeleri oluştur
-            tabs = st.tabs(tab_names)
-            
-            for i, tab_name in enumerate(tab_names):
-                with tabs[i]:
-                    active_df = grup_verileri[tab_name]
-                    
-                    col_search, col_info = st.columns([3, 1])
-                    with col_search:
-                        # Arama Kutusu
-                        search_term = st.text_input(f"🔍 '{tab_name}' içinde ara (İsim, şehir vb.):", key=f"search_{i}")
-                    with col_info:
-                        st.markdown(f"### Toplam: **{len(active_df)}** Kişi")
-                    
-                    # Arama Filtreleme Mantığı
-                    display_df = active_df
-                    if search_term:
-                        # Tüm sütunlarda arama yap (büyük/küçük harf duyarsız)
-                        mask = display_df.apply(lambda x: x.astype(str).str.contains(search_term, case=False, na=False)).any(axis=1)
-                        display_df = display_df[mask]
-                    
-                    st.dataframe(display_df, use_container_width=True)
-                    
-                    # Kuralı silme butonu (Sekmenin en altına)
-                    if st.button(f"🗑️ '{tab_name}' Grubunu Sil", key=f"del_tab_{i}"):
-                        st.session_state.kurallar.pop(i)
-                        st.rerun()
+            if tab_names:
+                tabs = st.tabs(tab_names)
+                
+                for i, tab_name in enumerate(tab_names):
+                    with tabs[i]:
+                        active_df = grup_verileri[tab_name]
+                        
+                        col_search, col_info = st.columns([3, 1])
+                        with col_search:
+                            search_term = st.text_input(f"🔍 '{tab_name}' içinde ara:", key=f"search_{i}")
+                        with col_info:
+                            st.markdown(f"### {len(active_df)} Kişi")
+                        
+                        display_df = active_df
+                        if search_term:
+                            mask = display_df.apply(lambda x: x.astype(str).str.contains(search_term, case=False, na=False)).any(axis=1)
+                            display_df = display_df[mask]
+                        
+                        st.dataframe(display_df, use_container_width=True)
+                        
+                        if st.button(f"🗑️ '{tab_name}' Grubunu Sil", key=f"del_tab_{i}"):
+                            st.session_state.kurallar.pop(i)
+                            st.rerun()
 
     except Exception as e:
         st.error(f"Hata: {e}")

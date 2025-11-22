@@ -41,20 +41,22 @@ if uploaded_file is not None:
         filtreler = {}
         
         if secilen_sutunlar:
-            st.info("Seçilen sütunlar için değer aralıklarını girin (Değerler dahildir):")
+            st.info("Değer aralıklarını girin (Sadece tam sayı):")
             cols = st.columns(len(secilen_sutunlar))
             
             for i, sutun in enumerate(secilen_sutunlar):
                 with cols[i]:
                     st.markdown(f"**{sutun}**")
-                    # Verideki min ve max değerleri referans olarak bulalım
-                    min_val, max_val = 0.0, 100.0
+                    # Varsayılan min-max değerlerini bul (Tam sayıya çevirerek)
+                    min_val, max_val = 0, 100
                     if pd.api.types.is_numeric_dtype(df[sutun]):
-                        min_val = float(df[sutun].min())
-                        max_val = float(df[sutun].max())
+                        # int() fonksiyonu ile küsüratları atıyoruz
+                        min_val = int(df[sutun].min())
+                        max_val = int(df[sutun].max())
                     
-                    girilen_min = st.number_input(f"Min", value=min_val, key=f"min_{sutun}")
-                    girilen_max = st.number_input(f"Max", value=max_val, key=f"max_{sutun}")
+                    # step=1 ve format="%d" ile sadece tam sayı girişine izin veriyoruz
+                    girilen_min = st.number_input(f"Min Değer", value=min_val, step=1, format="%d", key=f"min_{sutun}")
+                    girilen_max = st.number_input(f"Max Değer", value=max_val, step=1, format="%d", key=f"max_{sutun}")
                     
                     filtreler[sutun] = (girilen_min, girilen_max)
 
@@ -81,17 +83,11 @@ if uploaded_file is not None:
                 with st.expander(f"📄 Sayfa Adı: {kural['kategori']}", expanded=True):
                     st.markdown("###### Uygulanacak Kriterler:")
                     
-                    # --- GÜNCELLENEN KISIM BURASI ---
-                    # Dictionary'yi yazdırmak yerine döngü ile cümle kuruyoruz
                     for sutun, (min_v, max_v) in kural['filtreler'].items():
-                        # Sayı tam sayı ise virgüllü göstermesin (örn: 25.0 yerine 25 yazsın)
-                        gosterilen_min = int(min_v) if min_v == int(min_v) else min_v
-                        gosterilen_max = int(max_v) if max_v == int(max_v) else max_v
-                        
-                        st.markdown(f"- **{sutun}**: *{gosterilen_min}* ile *{gosterilen_max}* arasında olanlar.")
-                    # --------------------------------
+                        # Ekrana yazarken de tam sayı olarak gösteriyoruz
+                        st.markdown(f"- **{sutun}**: **{int(min_v)}** ile **{int(max_v)}** arası *(Başlangıç ve bitiş değerleri dahildir)*")
                     
-                    st.write("") # Biraz boşluk
+                    st.write("") 
                     if st.button(f"❌ '{kural['kategori']}' kuralını sil", key=f"del_{i}"):
                         st.session_state.kurallar.pop(i)
                         st.rerun()
@@ -126,7 +122,7 @@ if uploaded_file is not None:
                 data=output,
                 file_name="kategorize_edilmis_calisanlar.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary" 
+                type="primary"
             )
             
         else:

@@ -131,9 +131,15 @@ if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file)
         
+        # İstatistikler ve Başarı Mesajı
         col_stat1, col_stat2, col_stat3 = st.columns(3)
         col_stat1.metric("Toplam Kişi", len(df))
         col_stat1.info("✅ Veri Başarıyla Okundu")
+        
+        # --- EKLENEN KISIM (VERİ ÖNİZLEMESİ) ---
+        with st.expander("📄 Yüklenen Veriyi Gör (İlk 5 Satır)"):
+            st.dataframe(df.head())
+        # ---------------------------------------
 
         tum_cols = df.columns.tolist()
         sayisal = df.select_dtypes(include=['number']).columns.tolist()

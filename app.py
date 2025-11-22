@@ -18,8 +18,9 @@ if uploaded_file is not None:
     try:
         df = pd.read_excel(uploaded_file)
         st.success("Dosya başarıyla yüklendi!")
-        st.write("Veri Önizlemesi (İlk 5 Satır):")
-        st.dataframe(df.head())
+        
+        with st.expander("Veri Önizlemesi (Tıklayıp Aç/Kapa)"):
+            st.dataframe(df.head())
 
         # Sütun isimlerini al
         tum_sutunlar = df.columns.tolist()
@@ -46,14 +47,14 @@ if uploaded_file is not None:
             for i, sutun in enumerate(secilen_sutunlar):
                 with cols[i]:
                     st.markdown(f"**{sutun}**")
-                    # Verideki min ve max değerleri referans olarak bulalım (Eğer sayısal ise)
+                    # Verideki min ve max değerleri referans olarak bulalım
                     min_val, max_val = 0.0, 100.0
                     if pd.api.types.is_numeric_dtype(df[sutun]):
                         min_val = float(df[sutun].min())
                         max_val = float(df[sutun].max())
                     
-                    girilen_min = st.number_input(f"Min Değer ({sutun})", value=min_val, key=f"min_{sutun}")
-                    girilen_max = st.number_input(f"Max Değer ({sutun})", value=max_val, key=f"max_{sutun}")
+                    girilen_min = st.number_input(f"Min", value=min_val, key=f"min_{sutun}")
+                    girilen_max = st.number_input(f"Max", value=max_val, key=f"max_{sutun}")
                     
                     filtreler[sutun] = (girilen_min, girilen_max)
 
@@ -77,37 +78,44 @@ if uploaded_file is not None:
         if len(st.session_state.kurallar) > 0:
             # Kuralları Listele
             for i, kural in enumerate(st.session_state.kurallar):
-                with st.expander(f"{i+1}. {kural['kategori']}"):
-                    st.write(kural['filtreler'])
-                    if st.button(f"Sil", key=f"del_{i}"):
+                with st.expander(f"📄 Sayfa Adı: {kural['kategori']}", expanded=True):
+                    st.markdown("###### Uygulanacak Kriterler:")
+                    
+                    # --- GÜNCELLENEN KISIM BURASI ---
+                    # Dictionary'yi yazdırmak yerine döngü ile cümle kuruyoruz
+                    for sutun, (min_v, max_v) in kural['filtreler'].items():
+                        # Sayı tam sayı ise virgüllü göstermesin (örn: 25.0 yerine 25 yazsın)
+                        gosterilen_min = int(min_v) if min_v == int(min_v) else min_v
+                        gosterilen_max = int(max_v) if max_v == int(max_v) else max_v
+                        
+                        st.markdown(f"- **{sutun}**: *{gosterilen_min}* ile *{gosterilen_max}* arasında olanlar.")
+                    # --------------------------------
+                    
+                    st.write("") # Biraz boşluk
+                    if st.button(f"❌ '{kural['kategori']}' kuralını sil", key=f"del_{i}"):
                         st.session_state.kurallar.pop(i)
                         st.rerun()
 
+            st.divider()
+
             # Excel Oluşturma İşlemi
-            st.subheader("Sonuç Dosyasını İndir")
+            st.subheader("✅ Sonuç Dosyasını İndir")
             
-            # Bellekte Excel dosyası oluştur
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 
-                # Önce Orijinal veriyi ilk sayfaya koyalım (İsteğe bağlı)
                 df.to_excel(writer, sheet_name='Tüm Veri', index=False)
                 
                 for kural in st.session_state.kurallar:
                     temp_df = df.copy()
                     
-                    # Filtreleri uygula
                     for sutun, (min_v, max_v) in kural['filtreler'].items():
-                        # Pandas filtreleme mantığı (Değerler dahil >= ve <=)
                         if pd.api.types.is_numeric_dtype(temp_df[sutun]):
                             temp_df = temp_df[
                                 (temp_df[sutun] >= min_v) & 
                                 (temp_df[sutun] <= max_v)
                             ]
-                        else:
-                            st.warning(f"{sutun} sayısal değil, filtre uygulanamadı.")
-
-                    # Eğer sheet ismi çok uzunsa Excel hata verir, kısaltalım
+                    
                     sheet_name = kural['kategori'][:30] 
                     temp_df.to_excel(writer, sheet_name=sheet_name, index=False)
             
@@ -117,11 +125,12 @@ if uploaded_file is not None:
                 label="📥 Excel Dosyasını İndir",
                 data=output,
                 file_name="kategorize_edilmis_calisanlar.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary" 
             )
             
         else:
-            st.info("Henüz hiç kural eklemediniz.")
+            st.info("Henüz hiç kural eklemediniz. Yukarıdan ekleyebilirsiniz.")
 
     except Exception as e:
         st.error(f"Bir hata oluştu: {e}")
